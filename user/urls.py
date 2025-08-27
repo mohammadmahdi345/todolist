@@ -10,4 +10,4 @@ urlpatterns = [
     path('login/', LoginView.as_view()),
     path('users/', UserGetView.as_view()),
     path('user/', UserView.as_view())
-    ]
+]

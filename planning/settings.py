@@ -1,31 +1,37 @@
 import os
 from pathlib import Path
-from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# استفاده از متغیر محیطی برای SECRET_KEY با مقدار پیش‌فرض هشداردهنده
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-secret-key-change-this-in-prod')
+# کلید مخفی ساده برای توسعه (در پروداکشن حتما تغییرش بده)
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-secret-key-for-dev-only')
 
-# DEBUG بر اساس متغیر محیطی (default False)
-DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ['true', '1', 'yes']
+# فعال بودن حالت دیباگ
+DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ['true', '1', 'yes']
 
-# ALLOWED_HOSTS از متغیر محیطی می‌خوانیم، به صورت فاصله‌دار (space separated)
-allowed_hosts_env = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1')
-ALLOWED_HOSTS = allowed_hosts_env.split()
+# میزبان‌های مجاز (localhost و 127.0.0.1 پیش‌فرض)
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-# امنیت پایه
-SECURE_SSL_REDIRECT = not DEBUG  # ریدایرکت به HTTPS در حالت production
 
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+# برای محیط تست، ریدایرکت HTTPS رو غیرفعال کن
+SECURE_SSL_REDIRECT = False
 
-# اگر پروژه پشت پراکسی هست (مثل nginx) این تنظیمات رو می‌ذاری
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# کوکی‌ها بدون secure برای تست
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
-# CORS
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # اگر خواستی در prod محدود کنی اینجا تغییر بده
+# غیرفعال کردن header پراکسی برای محیط تست (در صورت نیاز فعال کن)
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# CORS باز برای تست
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type',
+    'x-csrftoken',
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -34,18 +40,21 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'tasks',
-    'rest_framework',
-    'user',
+
     'corsheaders',
+    'rest_framework',
+    'tasks',
+    'user',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # حتما بالاتر از CommonMiddleware
+    'django.middleware.common.CommonMiddleware',
+
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # حتما این رو قبل از CommonMiddleware باشه
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -70,87 +79,62 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'planning.wsgi.application'
 
-# لاگینگ
-import logging
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '[{levelname}] {asctime} {name} - {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '[{levelname}] {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'DEBUG' if DEBUG else 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'jwt_debug': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-    },
-}
-
-logging.getLogger('jwt_debug').debug("JWT Logger initialized.")
-
-# دیتابیس از متغیر محیطی می‌خونه
+# دیتابیس: پیش‌فرض SQLite برای توسعه، می‌تونی با env تغییر بدی
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB', 'default_db_name'),
-        'USER': os.getenv('POSTGRES_USER', 'default_user'),
-        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'default_password'),
-        'HOST': os.getenv('DB_HOST', 'db'),  # نام سرویس دیتابیس در docker-compose
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),
+        'NAME': os.getenv('DB_NAME', BASE_DIR / 'db.sqlite3'),
+        'USER': os.getenv('POSTGRES_USER', ''),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST', ''),
+        'PORT': os.getenv('DB_PORT', ''),
     }
 }
 
-# Django REST Framework
+# تنظیمات DRF
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'planning.authentication.CustomTokenAuthentication',
+        'planning.authentication.CustomTokenAuthentication',  # یا برای تست از SessionAuthentication استفاده کن
+        # 'rest_framework.authentication.SessionAuthentication',
     )
 }
 
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
-]
+#AUTH_PASSWORD_VALIDATORS = [
+    # در تست می‌تونی اینارو غیرفعال کنی یا نگه داری
+#]
 
 AUTH_USER_MODEL = 'user.User'
 
 LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'Asia/Tehran'
 USE_I18N = True
 USE_TZ = True
-TIME_ZONE = 'Asia/Tehran'
 
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+STATIC_ROOT = BASE_DIR / 'static'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ایمیل برای توسعه
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# لاگینگ در حالت DEBUG
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+}

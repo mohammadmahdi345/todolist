@@ -13,4 +13,4 @@ urlpatterns = [
     path('time/', TimeslotGetView.as_view()),
     path('task-status/', TaskStatusView.as_view()),
     path('task-button/<int:pk>/', TaskButtonView.as_view()),
-    ]
+]
